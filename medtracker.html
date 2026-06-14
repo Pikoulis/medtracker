@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Medicine Cabinet — supply tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1620;
+    --panel:#16212e;
+    --panel-2:#1d2a39;
+    --line:#2a3a4d;
+    --surface:#f5f7fa;
+    --ink:#0e1620;
+    --text:#e7edf4;
+    --muted:#8294a8;
+    --accent:#2dd4bf;
+    --accent-dim:#13837a;
+    --warn:#f0b048;
+    --danger:#f06a5d;
+    --ok:#5fd08a;
+    --radius:14px;
+    --mono:'Space Grotesk',ui-monospace,monospace;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);font-family:var(--body);-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;line-height:1.5}
+  .wrap{max-width:920px;margin:0 auto;padding:0 18px 80px}
+
+  /* header */
+  header{position:sticky;top:0;z-index:20;background:rgba(14,22,32,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .head-in{max-width:920px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-weight:700;font-size:18px;letter-spacing:-.01em}
+  .pill-ic{width:26px;height:14px;border-radius:8px;background:linear-gradient(90deg,var(--accent) 50%,#cdd8e4 50%);flex:0 0 auto;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.2)}
+  nav{margin-left:auto;display:flex;gap:4px;background:var(--panel);padding:4px;border-radius:11px;border:1px solid var(--line)}
+  nav button{font-family:var(--body);font-weight:550;font-size:13.5px;color:var(--muted);background:none;border:0;padding:8px 16px;border-radius:8px;cursor:pointer;transition:.15s}
+  nav button:hover{color:var(--text)}
+  nav button.on{background:var(--panel-2);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+
+  h2.view-t{font-family:var(--mono);font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:30px 0 16px}
+
+  /* overview cards */
+  .grid{display:grid;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;position:relative;overflow:hidden}
+  .card .edge{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+  .card-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .med-name{font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .med-sub{font-size:13px;color:var(--muted);margin-top:2px}
+  .daysbox{text-align:right;flex:0 0 auto}
+  .days-n{font-family:var(--mono);font-weight:700;font-size:30px;line-height:1}
+  .days-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
+
+  /* capsule depletion bar */
+  .cap{margin-top:16px;height:18px;border-radius:9px;background:var(--panel-2);border:1px solid var(--line);overflow:hidden;position:relative}
+  .cap-fill{height:100%;border-radius:9px 0 0 9px;transition:width .5s ease;background:linear-gradient(90deg,var(--accent-dim),var(--accent))}
+  .cap-ticks{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),rgba(255,255,255,.05) calc(10% - 1px),rgba(255,255,255,.05) 10%)}
+  .meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:14px;font-size:13px}
+  .meta div{display:flex;flex-direction:column;gap:1px}
+  .meta .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .meta .v{font-family:var(--mono);font-weight:500;font-size:14.5px}
+  .tag{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;border:1px solid}
+  .tag.ok{color:var(--ok);border-color:rgba(95,208,138,.4);background:rgba(95,208,138,.08)}
+  .tag.warn{color:var(--warn);border-color:rgba(240,176,72,.4);background:rgba(240,176,72,.08)}
+  .tag.danger{color:var(--danger);border-color:rgba(240,106,93,.4);background:rgba(240,106,93,.08)}
+
+  /* summary strip */
+  .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .n{font-family:var(--mono);font-weight:700;font-size:26px}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .stat.alert .n{color:var(--danger)}
+
+  /* form */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .frow{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field.full{grid-column:1 / -1}
+  label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:500}
+  input{font-family:var(--body);font-size:15px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:11px 12px;transition:.15s}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(45,212,191,.13)}
+  input::placeholder{color:#52647a}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:3px;gap:3px}
+  .seg button{flex:1;font-family:var(--body);font-weight:550;font-size:14px;color:var(--muted);background:none;border:0;padding:8px;border-radius:7px;cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--accent);color:#06201d}
+  .with-unit{position:relative}
+  .with-unit .u{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:13px;color:var(--muted);pointer-events:none}
+  .actions{display:flex;gap:10px;margin-top:20px}
+  .btn{font-family:var(--body);font-weight:600;font-size:14.5px;padding:11px 20px;border-radius:9px;border:1px solid transparent;cursor:pointer;transition:.15s}
+  .btn-primary{background:var(--accent);color:#06201d}
+  .btn-primary:hover{background:#4fe0cf}
+  .btn-ghost{background:none;border-color:var(--line);color:var(--muted)}
+  .btn-ghost:hover{color:var(--text);border-color:var(--muted)}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:10px}
+  .live-readout{margin-top:14px;padding:12px 14px;background:var(--panel-2);border:1px dashed var(--line);border-radius:10px;font-size:13.5px;color:var(--muted);min-height:44px;display:flex;align-items:center}
+  .live-readout b{color:var(--accent);font-family:var(--mono)}
+
+  /* manage list */
+  .mlist{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+  .mrow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .mrow .nm{font-family:var(--mono);font-weight:600;font-size:15.5px}
+  .mrow .ds{font-size:12.5px;color:var(--muted);margin-top:1px}
+  .mrow .right{margin-left:auto;display:flex;gap:6px}
+  .icon-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:550;cursor:pointer;transition:.15s;font-family:var(--body)}
+  .icon-btn:hover{color:var(--text);border-color:var(--muted)}
+  .icon-btn.del:hover{color:var(--danger);border-color:rgba(240,106,93,.5)}
+
+  /* empty */
+  .empty{text-align:center;padding:54px 20px;color:var(--muted)}
+  .empty .big{font-family:var(--mono);font-size:17px;color:var(--text);margin-bottom:6px}
+  .empty .pill-ic{width:46px;height:24px;border-radius:14px;margin:0 auto 18px;opacity:.5}
+
+  .hidden{display:none !important}
+  @media(max-width:560px){
+    .frow{grid-template-columns:1fr}
+    .strip{grid-template-columns:1fr 1fr}
+    .days-n{font-size:26px}
+    nav{width:100%;margin-left:0}
+    nav button{flex:1}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-in">
+    <div class="brand"><span class="pill-ic"></span>Medicine&nbsp;Cabinet</div>
+    <nav>
+      <button id="tab-overview" class="on" onclick="show('overview')">Overview</button>
+      <button id="tab-manage" onclick="show('manage')">Manage</button>
+      <button id="tab-settings" onclick="show('settings')">Settings</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===== OVERVIEW ===== -->
+  <section id="view-overview">
+    <div style="display:flex;align-items:center;gap:12px;margin:30px 0 16px">
+      <h2 class="view-t" style="margin:0">Supply at a glance</h2>
+      <span id="sync-badge" class="tag" style="margin-left:auto"></span>
+      <button id="refresh-btn" class="icon-btn hidden" onclick="cloudRefresh()">↻ Sync</button>
+    </div>
+    <div class="strip" id="strip"></div>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <!-- ===== MANAGE ===== -->
+  <section id="view-manage" class="hidden">
+    <h2 class="view-t" id="form-title">Add medication</h2>
+    <div class="panel">
+      <div class="frow">
+        <div class="field full">
+          <label for="f-name">Name</label>
+          <input id="f-name" type="text" placeholder="e.g. Ibuprofen 400" autocomplete="off">
+        </div>
+
+        <div class="field">
+          <label>Measured in</label>
+          <div class="seg" id="unit-seg">
+            <button type="button" class="on" data-unit="units" onclick="setUnit('units')">Units</button>
+            <button type="button" data-unit="mg" onclick="setUnit('mg')">Milligrams</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-qty">Total quantity on hand</label>
+          <div class="with-unit">
+            <input id="f-qty" type="number" min="0" step="any" placeholder="30" oninput="liveCalc()">
+            <span class="u" id="u-qty">units</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-daily">Used per day</label>
+          <div class="with-unit">
+            <input id="f-daily" type="number" min="0" step="any" placeholder="2" oninput="liveCalc()">
+            <span class="u" id="u-daily">units/day</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-start">Started on</label>
+          <input id="f-start" type="date" oninput="liveCalc()">
+        </div>
+
+        <div class="field">
+          <label for="f-remind">Remind me when</label>
+          <div class="with-unit">
+            <input id="f-remind" type="number" min="0" step="1" placeholder="14" oninput="liveCalc()">
+            <span class="u">days left</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="live-readout" id="readout">Fill in quantity and daily use to see when it runs out.</div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="save-btn" onclick="save()">Add medication</button>
+        <button class="btn btn-ghost hidden" id="cancel-btn" onclick="resetForm()">Cancel</button>
+      </div>
+      <div class="hint">Stored on this device, and synced to your Supabase project if connected in Settings. Daily use and quantity share the same unit.</div>
+    </div>
+
+    <div class="mlist" id="mlist"></div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section id="view-settings" class="hidden">
+    <h2 class="view-t">Sync across devices</h2>
+    <div class="panel">
+      <p style="font-size:14px;color:var(--muted);margin-bottom:18px;line-height:1.6">
+        Connect your own <b style="color:var(--text)">Supabase</b> project to keep data in sync between computers.
+        These details are stored only in <b style="color:var(--text)">this</b> browser — never in the website's code —
+        so visitors without your keys see nothing. Leave blank to keep everything local to this device.
+      </p>
+      <div class="frow">
+        <div class="field full">
+          <label for="s-url">Project URL</label>
+          <input id="s-url" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field full">
+          <label for="s-key">Anon public key</label>
+          <input id="s-key" type="password" placeholder="eyJhbGc..." autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="live-readout" id="conn-readout">Not connected — data is stored on this device only.</div>
+      <div class="actions">
+        <button class="btn btn-primary" id="conn-btn" onclick="connect()">Connect &amp; sync</button>
+        <button class="btn btn-ghost hidden" id="disc-btn" onclick="disconnect()">Disconnect</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div style="font-family:var(--mono);font-weight:600;font-size:14px;margin-bottom:10px">One-time setup in Supabase</div>
+      <p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:10px">
+        Create a free project, then open <b style="color:var(--text)">SQL Editor</b> and run this once. Copy the
+        Project URL and anon key from <b style="color:var(--text)">Settings → API</b>.
+      </p>
+      <pre id="sql-box" style="background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:14px;font-family:var(--mono);font-size:12.5px;color:var(--text);overflow-x:auto;line-height:1.6;white-space:pre">create table medications (
+  id text primary key,
+  name text,
+  qty numeric,
+  daily numeric,
+  unit text,
+  "start" text,
+  remind integer
+);
+alter table medications enable row level security;
+create policy "anon access" on medications
+  for all to anon using (true) with check (true);</pre>
+      <button class="icon-btn" style="margin-top:10px" onclick="copySql()">Copy SQL</button>
+      <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6">
+        Anyone with your URL and anon key can read this table, so don't share them or commit them anywhere public.
+        For multiple separate people on the same project, each should use their own Supabase project instead.
+      </p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const KEY='medcabinet.v1';
+const CFG='medcabinet.cfg';
+let meds=[];
+let editId=null;
+let curUnit='units';
+let cloud=null;   // {url, key} when connected
+let busy=false;
+
+/* ---------- storage ---------- */
+function load(){
+  try{ meds=JSON.parse(localStorage.getItem(KEY))||[]; }
+  catch(e){ meds=[]; }
+  meds.forEach(m=>{ if(m.remind===undefined||m.remind===null) m.remind=14; });
+}
+function persist(){
+  try{ localStorage.setItem(KEY,JSON.stringify(meds)); }catch(e){}
+}
+function loadCfg(){
+  try{ cloud=JSON.parse(localStorage.getItem(CFG))||null; }catch(e){ cloud=null; }
+}
+
+/* ---------- supabase REST ---------- */
+function sbHeaders(){
+  // New sb_publishable_ keys are not JWTs and must NOT go in Authorization.
+  // Legacy anon keys (JWT, start with "eyJ") still work in both headers.
+  const h={ 'apikey':cloud.key, 'Content-Type':'application/json' };
+  if(/^eyJ/.test(cloud.key)) h['Authorization']='Bearer '+cloud.key;
+  return h;
+}
+function sbUrl(path){ return cloud.url.replace(/\/+$/,'')+'/rest/v1/'+path; }
+
+async function sbFetchAll(){
+  const r=await fetch(sbUrl('medications?select=*'),{headers:sbHeaders()});
+  if(!r.ok) throw new Error('HTTP '+r.status+' '+(await r.text()));
+  return await r.json();
+}
+async function sbInsert(m){
+  const r=await fetch(sbUrl('medications'),{method:'POST',
+    headers:{...sbHeaders(),'Prefer':'return=minimal'},body:JSON.stringify(m)});
+  if(!r.ok) throw new Error(await r.text());
+}
+async function sbUpdate(m){
+  const r=await fetch(sbUrl('medications?id=eq.'+encodeURIComponent(m.id)),{method:'PATCH',
+    headers:{...sbHeaders(),'Prefer':'return=minimal'},body:JSON.stringify(m)});
+  if(!r.ok) throw new Error(await r.text());
+}
+async function sbDelete(id){
+  const r=await fetch(sbUrl('medications?id=eq.'+encodeURIComponent(id)),{method:'DELETE',
+    headers:sbHeaders()});
+  if(!r.ok) throw new Error(await r.text());
+}
+
+/* ---------- connection flow ---------- */
+function updateSyncUI(state,msg){
+  const badge=document.getElementById('sync-badge');
+  const refresh=document.getElementById('refresh-btn');
+  if(!cloud){ badge.textContent='Local only'; badge.className='tag'; badge.style.color='var(--muted)'; badge.style.borderColor='var(--line)'; refresh.classList.add('hidden'); return; }
+  refresh.classList.remove('hidden');
+  if(state==='ok'){ badge.textContent='Synced'; badge.className='tag ok'; }
+  else if(state==='sync'){ badge.textContent='Syncing…'; badge.className='tag warn'; }
+  else { badge.textContent='Sync error'; badge.className='tag danger'; }
+}
+
+async function connect(){
+  const url=document.getElementById('s-url').value.trim();
+  const key=document.getElementById('s-key').value.trim();
+  const out=document.getElementById('conn-readout');
+  if(!url||!key){ out.innerHTML='Enter both the project URL and the anon key.'; return; }
+  out.innerHTML='Testing connection…';
+  cloud={url,key};
+  try{
+    const rows=await sbFetchAll();
+    // merge: push any local-only meds up, then adopt cloud as source of truth
+    if(meds.length){
+      const cloudIds=new Set(rows.map(r=>r.id));
+      for(const m of meds){ if(!cloudIds.has(m.id)){ try{ await sbInsert(stripForCloud(m)); }catch(e){} } }
+    }
+    meds=(await sbFetchAll()).map(normalize);
+    persist();
+    localStorage.setItem(CFG,JSON.stringify(cloud));
+    out.innerHTML='<b>Connected.</b> Your medications now sync through this Supabase project.';
+    document.getElementById('disc-btn').classList.remove('hidden');
+    document.getElementById('conn-btn').textContent='Reconnect';
+    updateSyncUI('ok');
+    renderManageList(); renderOverview();
+  }catch(e){
+    cloud=null;
+    out.innerHTML='<b style="color:var(--danger)">Could not connect.</b> Check the URL, key, and that you ran the SQL setup.<br><span style="font-size:12px">'+esc(String(e.message||e)).slice(0,180)+'</span>';
+    updateSyncUI();
+  }
+}
+
+function disconnect(){
+  if(!confirm('Disconnect sync? Data stays on this device but stops syncing.')) return;
+  cloud=null;
+  localStorage.removeItem(CFG);
+  document.getElementById('disc-btn').classList.add('hidden');
+  document.getElementById('conn-btn').textContent='Connect & sync';
+  document.getElementById('conn-readout').innerHTML='Disconnected — data is stored on this device only.';
+  updateSyncUI();
+}
+
+async function cloudRefresh(){
+  if(!cloud) return;
+  updateSyncUI('sync');
+  try{ meds=(await sbFetchAll()).map(normalize); persist(); renderManageList(); renderOverview(); updateSyncUI('ok'); }
+  catch(e){ updateSyncUI('err'); }
+}
+
+function stripForCloud(m){ return {id:m.id,name:m.name,qty:m.qty,daily:m.daily,unit:m.unit,start:m.start,remind:m.remind}; }
+function normalize(r){ return {id:r.id,name:r.name,qty:+r.qty,daily:+r.daily,unit:r.unit,start:r.start,remind:r.remind==null?14:+r.remind}; }
+
+function copySql(){ navigator.clipboard.writeText(document.getElementById('sql-box').textContent).then(()=>{}); }
+
+/* ---------- date helpers ---------- */
+function today(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function parseD(s){ const d=new Date(s+'T00:00:00'); return isNaN(d)?null:d; }
+function fmtD(d){ return d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}); }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function todayISO(){ const d=today(); return d.toISOString().slice(0,10); }
+
+/* ---------- core calc ---------- */
+function calc(m){
+  const start=parseD(m.start);
+  const totalDays = m.daily>0 ? m.qty/m.daily : Infinity;
+  const elapsed = start ? Math.max(0, daysBetween(start, today())) : 0;
+  const consumed = elapsed * m.daily;
+  const remainingQty = Math.max(0, m.qty - consumed);
+  const remainingDays = m.daily>0 ? remainingQty/m.daily : Infinity;
+  const endDate = (start && isFinite(totalDays)) ? new Date(start.getTime()+Math.round(totalDays)*86400000) : null;
+  const pctLeft = m.qty>0 ? remainingQty/m.qty : 0;
+  return {remainingQty,remainingDays:Math.floor(remainingDays),remainingDaysExact:remainingDays,endDate,pctLeft,started:!!start,startInFuture:start&&start>today()};
+}
+function statusOf(rd, remind){
+  if(rd<=0) return 'danger';
+  if(rd<=remind) return 'warn';
+  return 'ok';
+}
+
+/* ---------- views ---------- */
+function show(v){
+  document.getElementById('view-overview').classList.toggle('hidden',v!=='overview');
+  document.getElementById('view-manage').classList.toggle('hidden',v!=='manage');
+  document.getElementById('view-settings').classList.toggle('hidden',v!=='settings');
+  document.getElementById('tab-overview').classList.toggle('on',v==='overview');
+  document.getElementById('tab-manage').classList.toggle('on',v==='manage');
+  document.getElementById('tab-settings').classList.toggle('on',v==='settings');
+  if(v==='overview'){ renderOverview(); if(cloud) cloudRefresh(); }
+}
+
+function renderOverview(){
+  const cards=document.getElementById('cards');
+  const strip=document.getElementById('strip');
+  if(!meds.length){
+    strip.innerHTML='';
+    cards.innerHTML=`<div class="empty"><div class="pill-ic"></div><div class="big">Nothing tracked yet</div><div>Head to <b>Manage</b> to add your first medication.</div></div>`;
+    return;
+  }
+  const computed=meds.map(m=>({m,c:calc(m)}));
+  computed.sort((a,b)=>a.c.remainingDaysExact-b.c.remainingDaysExact);
+
+  const low=computed.filter(x=>x.c.remainingDays<=x.m.remind && x.c.remainingDays>0).length;
+  const out=computed.filter(x=>x.c.remainingDays<=0).length;
+  strip.innerHTML=`
+    <div class="stat"><div class="n">${meds.length}</div><div class="l">Tracked</div></div>
+    <div class="stat ${low?'alert':''}"><div class="n">${low}</div><div class="l">Need refill</div></div>
+    <div class="stat ${out?'alert':''}"><div class="n">${out}</div><div class="l">Run out</div></div>`;
+
+  cards.innerHTML=computed.map(({m,c})=>{
+    const st=statusOf(c.remainingDays, m.remind);
+    const col=st==='danger'?'var(--danger)':st==='warn'?'var(--warn)':'var(--accent)';
+    const tagTxt = c.remainingDays<=0 ? 'Empty' : st==='danger'?'Reorder now':st==='warn'?'Running low':'Stocked';
+    let endTxt = c.endDate ? fmtD(c.endDate) : '—';
+    let daysDisp = isFinite(c.remainingDays) ? Math.max(0,c.remainingDays) : '∞';
+    return `<div class="card">
+      <div class="edge" style="background:${col}"></div>
+      <div class="card-top">
+        <div>
+          <div class="med-name">${esc(m.name)}</div>
+          <div class="med-sub">${m.daily} ${m.unit}/day · ${m.qty} ${m.unit} bought</div>
+        </div>
+        <div class="daysbox">
+          <div class="days-n" style="color:${col}">${daysDisp}</div>
+          <div class="days-l">days left</div>
+        </div>
+      </div>
+      <div class="cap"><div class="cap-fill" style="width:${(c.pctLeft*100).toFixed(1)}%;background:linear-gradient(90deg,${col}55,${col})"></div><div class="cap-ticks"></div></div>
+      <div class="meta">
+        <div><span class="k">Remaining</span><span class="v">${round(c.remainingQty)} ${m.unit}</span></div>
+        <div><span class="k">Runs out</span><span class="v">${endTxt}</span></div>
+        <div><span class="k">Started</span><span class="v">${c.started?fmtD(parseD(m.start)):'—'}</span></div>
+        <div style="margin-left:auto;align-self:center"><span class="tag ${st}">${tagTxt}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderManageList(){
+  const el=document.getElementById('mlist');
+  if(!meds.length){ el.innerHTML=''; return; }
+  el.innerHTML=meds.map(m=>{
+    const c=calc(m);
+    return `<div class="mrow">
+      <div>
+        <div class="nm">${esc(m.name)}</div>
+        <div class="ds">${m.qty} ${m.unit} · ${m.daily} ${m.unit}/day · remind at ${m.remind}d · ${isFinite(c.remainingDays)?Math.max(0,c.remainingDays)+' days left':'no daily use set'}</div>
+      </div>
+      <div class="right">
+        <button class="icon-btn" onclick="edit('${m.id}')">Edit</button>
+        <button class="icon-btn del" onclick="del('${m.id}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- form ---------- */
+function setUnit(u){
+  curUnit=u;
+  document.querySelectorAll('#unit-seg button').forEach(b=>b.classList.toggle('on',b.dataset.unit===u));
+  document.getElementById('u-qty').textContent=u;
+  document.getElementById('u-daily').textContent=u+'/day';
+  liveCalc();
+}
+
+function liveCalc(){
+  const qty=parseFloat(document.getElementById('f-qty').value);
+  const daily=parseFloat(document.getElementById('f-daily').value);
+  const start=document.getElementById('f-start').value;
+  const r=document.getElementById('readout');
+  if(!(qty>0)||!(daily>0)){ r.innerHTML='Fill in quantity and daily use to see when it runs out.'; return; }
+  const m={qty,daily,unit:curUnit,start:start||todayISO()};
+  const c=calc(m);
+  const total=Math.round(qty/daily);
+  if(c.remainingDays<=0){ r.innerHTML=`At ${daily} ${curUnit}/day this supply lasts <b>${total} days</b> — it would already be <b>empty</b>.`; return; }
+  r.innerHTML=`Lasts <b>${total} days</b> total · about <b>${c.remainingDays} days left</b> from today` + (c.endDate?` · runs out <b>${fmtD(c.endDate)}</b>.`:'.');
+}
+
+async function save(){
+  const name=document.getElementById('f-name').value.trim();
+  const qty=parseFloat(document.getElementById('f-qty').value);
+  const daily=parseFloat(document.getElementById('f-daily').value);
+  let start=document.getElementById('f-start').value;
+  let remind=parseInt(document.getElementById('f-remind').value);
+  if(!(remind>=0)) remind=14;
+  if(!name){ flash('f-name'); return; }
+  if(!(qty>=0)){ flash('f-qty'); return; }
+  if(!(daily>0)){ flash('f-daily'); return; }
+  if(!start) start=todayISO();
+  let target;
+  if(editId){
+    const m=meds.find(x=>x.id===editId);
+    Object.assign(m,{name,qty,daily,unit:curUnit,start,remind});
+    target=m;
+  }else{
+    target={id:'m'+Date.now().toString(36),name,qty,daily,unit:curUnit,start,remind};
+    meds.push(target);
+  }
+  const wasEdit=!!editId;
+  persist(); resetForm(); renderManageList();
+  if(cloud){
+    updateSyncUI('sync');
+    try{ wasEdit ? await sbUpdate(stripForCloud(target)) : await sbInsert(stripForCloud(target)); updateSyncUI('ok'); }
+    catch(e){ updateSyncUI('err'); }
+  }
+}
+
+function edit(id){
+  const m=meds.find(x=>x.id===id); if(!m) return;
+  editId=id;
+  document.getElementById('f-name').value=m.name;
+  document.getElementById('f-qty').value=m.qty;
+  document.getElementById('f-daily').value=m.daily;
+  document.getElementById('f-start').value=m.start;
+  document.getElementById('f-remind').value=m.remind;
+  setUnit(m.unit);
+  document.getElementById('form-title').textContent='Edit medication';
+  document.getElementById('save-btn').textContent='Save changes';
+  document.getElementById('cancel-btn').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+async function del(id){
+  const m=meds.find(x=>x.id===id);
+  if(!confirm('Delete "'+(m?m.name:'this')+'"?')) return;
+  meds=meds.filter(x=>x.id!==id);
+  if(editId===id) resetForm();
+  persist(); renderManageList();
+  if(cloud){
+    updateSyncUI('sync');
+    try{ await sbDelete(id); updateSyncUI('ok'); }catch(e){ updateSyncUI('err'); }
+  }
+}
+
+function resetForm(){
+  editId=null;
+  ['f-name','f-qty','f-daily'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('f-start').value=todayISO();
+  document.getElementById('f-remind').value='14';
+  setUnit('units');
+  document.getElementById('form-title').textContent='Add medication';
+  document.getElementById('save-btn').textContent='Add medication';
+  document.getElementById('cancel-btn').classList.add('hidden');
+  document.getElementById('readout').innerHTML='Fill in quantity and daily use to see when it runs out.';
+}
+
+/* ---------- utils ---------- */
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function round(n){ return Math.round(n*100)/100; }
+function flash(id){ const e=document.getElementById(id); e.focus(); e.style.borderColor='var(--danger)'; setTimeout(()=>e.style.borderColor='',900); }
+
+/* ---------- boot ---------- */
+load();
+loadCfg();
+resetForm();
+renderManageList();
+renderOverview();
+updateSyncUI();
+
+if(cloud){
+  document.getElementById('s-url').value=cloud.url;
+  document.getElementById('s-key').value=cloud.key;
+  document.getElementById('disc-btn').classList.remove('hidden');
+  document.getElementById('conn-btn').textContent='Reconnect';
+  document.getElementById('conn-readout').innerHTML='Connected to your Supabase project. Data syncs automatically.';
+  cloudRefresh();
+}
+</script>
+</body>
+</html>
