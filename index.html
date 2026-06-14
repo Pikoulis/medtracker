@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Medicine Cabinet — supply tracker</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0e1620">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meds">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">
@@ -211,7 +219,19 @@
   <!-- ===== SETTINGS ===== -->
   <section id="view-settings" class="hidden">
     <h2 class="view-t">Sync across devices</h2>
-    <div class="panel">
+
+    <div class="panel" id="install-panel">
+      <div style="font-family:var(--mono);font-weight:600;font-size:14px;margin-bottom:10px">Install as an app</div>
+      <p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+        Add Medicine Cabinet to your home screen or desktop for an app icon, its own window, and offline use.
+      </p>
+      <div class="actions" style="margin-top:0">
+        <button class="btn btn-primary hidden" id="install-btn" onclick="installApp()">Install app</button>
+      </div>
+      <div class="hint" id="install-hint">If you don't see an install button, use your browser menu: on Chrome/Edge look for the install icon in the address bar; on iPhone Safari tap Share → Add to Home Screen.</div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
       <p style="font-size:14px;color:var(--muted);margin-bottom:18px;line-height:1.6">
         Connect your own <b style="color:var(--text)">Supabase</b> project to keep data in sync between computers.
         These details are stored only in <b style="color:var(--text)">this</b> browser — never in the website's code —
@@ -232,6 +252,20 @@
         <button class="btn btn-primary" id="conn-btn" onclick="connect()">Connect &amp; sync</button>
         <button class="btn btn-ghost hidden" id="disc-btn" onclick="disconnect()">Disconnect</button>
       </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div style="font-family:var(--mono);font-weight:600;font-size:14px;margin-bottom:10px">Refill reminders</div>
+      <p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+        Get a browser alert when a medication drops to its reminder threshold. Alerts appear while this
+        page is open or when you come back to it — once per day per medication. (A fully closed browser
+        can't be alerted without a server.)
+      </p>
+      <div class="actions" style="margin-top:0">
+        <button class="btn btn-primary" id="notif-btn" onclick="enableNotifs()">Enable notifications</button>
+        <button class="btn btn-ghost hidden" id="notif-test" onclick="testNotif()">Send test</button>
+      </div>
+      <div class="hint" id="notif-status">Off — click to allow alerts when a medication runs low.</div>
     </div>
 
     <div class="panel" style="margin-top:14px">
@@ -411,6 +445,7 @@ function show(v){
   document.getElementById('tab-manage').classList.toggle('on',v==='manage');
   document.getElementById('tab-settings').classList.toggle('on',v==='settings');
   if(v==='overview'){ renderOverview(); if(cloud) cloudRefresh(); }
+  if(v==='settings') updateNotifUI();
 }
 
 function renderOverview(){
@@ -458,6 +493,7 @@ function renderOverview(){
       </div>
     </div>`;
   }).join('');
+  checkReminders();
 }
 
 function renderManageList(){
@@ -610,10 +646,97 @@ function resetForm(){
   document.getElementById('readout').innerHTML='Fill in quantity and daily use to see when it runs out.';
 }
 
-/* ---------- utils ---------- */
+/* ---------- reminders / notifications ---------- */
+const NOTIF_KEY='medcabinet.notified';
+function getNotified(){ try{ return JSON.parse(localStorage.getItem(NOTIF_KEY))||{}; }catch(e){ return {}; } }
+function setNotified(o){ try{ localStorage.setItem(NOTIF_KEY,JSON.stringify(o)); }catch(e){} }
+
+function notifIcon(){
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="20" fill="#0e1620"/><rect x="18" y="40" width="60" height="18" rx="9" fill="#2dd4bf"/><rect x="48" y="40" width="30" height="18" rx="9" fill="#cdd8e4"/></svg>';
+  return 'data:image/svg+xml;base64,'+btoa(svg);
+}
+
+function enableNotifs(){
+  if(!('Notification' in window)){ updateNotifUI(); return; }
+  if(Notification.permission==='granted'){ updateNotifUI(); checkReminders(); return; }
+  if(Notification.permission==='denied'){ updateNotifUI(); return; }
+  Notification.requestPermission().then(p=>{ updateNotifUI(); if(p==='granted') checkReminders(); });
+}
+
+function updateNotifUI(){
+  const btn=document.getElementById('notif-btn');
+  const test=document.getElementById('notif-test');
+  const st=document.getElementById('notif-status');
+  if(!btn) return;
+  if(!('Notification' in window)){ btn.disabled=true; btn.textContent='Not supported'; test.classList.add('hidden'); st.textContent='This browser does not support notifications.'; return; }
+  const perm=Notification.permission;
+  if(perm==='granted'){ btn.disabled=true; btn.textContent='Notifications on'; test.classList.remove('hidden'); st.innerHTML='On — you\'ll be alerted when a medication reaches its reminder threshold while this page is open or when you return to it.'; }
+  else if(perm==='denied'){ btn.disabled=false; btn.textContent='Enable notifications'; test.classList.add('hidden'); st.innerHTML='<b style="color:var(--danger)">Blocked.</b> Allow notifications for this site in your browser settings, then reload.'; }
+  else { btn.disabled=false; btn.textContent='Enable notifications'; test.classList.add('hidden'); st.textContent='Off — click to allow alerts when a medication runs low.'; }
+}
+
+function testNotif(){
+  if(('Notification' in window)&&Notification.permission==='granted'){
+    try{ new Notification('Medicine Cabinet',{body:'Test alert — notifications are working.',tag:'medcabinet-test',icon:notifIcon()}); }catch(e){}
+  }
+}
+
+function checkReminders(){
+  if(!('Notification' in window)||Notification.permission!=='granted') return;
+  const today=todayISO();
+  const notified=getNotified();
+  const due=[];
+  for(const m of meds){
+    const c=calc(m);
+    const low=isFinite(c.remainingDays)&&c.remainingDays<=m.remind;
+    if(low){ if(notified[m.id]!==today) due.push({m,c}); }
+    else if(notified[m.id]) delete notified[m.id]; // recovered → allow future alerts
+  }
+  if(due.length) due.forEach(({m})=>notified[m.id]=today);
+  setNotified(notified);
+  if(!due.length) return;
+
+  let title,body;
+  if(due.length===1){
+    const {m,c}=due[0]; const d=Math.max(0,c.remainingDays);
+    title = d<=0 ? m.name+' has run out' : m.name+' is running low';
+    body  = d<=0 ? 'Time to reorder.' : round(c.remainingQty)+' '+m.unit+' left · about '+d+' day'+(d===1?'':'s')+' remaining';
+  }else{
+    title = due.length+' medications need attention';
+    body  = due.map(({m,c})=>m.name+' ('+(c.remainingDays<=0?'empty':Math.max(0,c.remainingDays)+'d')+')').join(', ');
+  }
+  try{
+    const n=new Notification(title,{body,tag:'medcabinet-reminder',icon:notifIcon()});
+    n.onclick=()=>{ window.focus(); n.close(); };
+  }catch(e){}
+}
+
+
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function round(n){ return Math.round(n*100)/100; }
 function flash(id){ const e=document.getElementById(id); e.focus(); e.style.borderColor='var(--danger)'; setTimeout(()=>e.style.borderColor='',900); }
+
+/* ---------- PWA install + service worker ---------- */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); deferredPrompt=e;
+  const b=document.getElementById('install-btn'); if(b) b.classList.remove('hidden');
+});
+async function installApp(){
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null;
+  const b=document.getElementById('install-btn'); if(b) b.classList.add('hidden');
+}
+window.addEventListener('appinstalled',()=>{
+  deferredPrompt=null;
+  const b=document.getElementById('install-btn'); if(b) b.classList.add('hidden');
+  const h=document.getElementById('install-hint'); if(h) h.textContent='Installed. Launch it from your home screen or app list.';
+});
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('./sw.js').catch(()=>{}); });
+}
 
 /* ---------- boot ---------- */
 load();
@@ -622,6 +745,9 @@ resetForm();
 renderManageList();
 renderOverview();
 updateSyncUI();
+updateNotifUI();
+
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkReminders(); });
 
 if(cloud){
   document.getElementById('s-url').value=cloud.url;
