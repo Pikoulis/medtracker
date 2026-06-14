@@ -100,10 +100,10 @@
 
   /* manage list */
   .mlist{margin-top:18px;display:flex;flex-direction:column;gap:8px}
-  .mrow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .mrow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 14px;flex-wrap:wrap}
   .mrow .nm{font-family:var(--mono);font-weight:600;font-size:15.5px}
   .mrow .ds{font-size:12.5px;color:var(--muted);margin-top:1px}
-  .mrow .right{margin-left:auto;display:flex;gap:6px}
+  .mrow .right{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
   .icon-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:550;cursor:pointer;transition:.15s;font-family:var(--body)}
   .icon-btn:hover{color:var(--text);border-color:var(--muted)}
   .icon-btn.del:hover{color:var(--danger);border-color:rgba(240,106,93,.5)}
@@ -471,6 +471,8 @@ function renderManageList(){
         <div class="ds">${m.qty} ${m.unit} · ${m.daily} ${m.unit}/day · remind at ${m.remind}d · ${isFinite(c.remainingDays)?Math.max(0,c.remainingDays)+' days left':'no daily use set'}</div>
       </div>
       <div class="right">
+        <button class="icon-btn" onclick="restock('${m.id}')">Restock</button>
+        <button class="icon-btn" onclick="setActual('${m.id}')">Set count</button>
         <button class="icon-btn" onclick="edit('${m.id}')">Edit</button>
         <button class="icon-btn del" onclick="del('${m.id}')">Delete</button>
       </div>
@@ -554,6 +556,46 @@ async function del(id){
     updateSyncUI('sync');
     try{ await sbDelete(id); updateSyncUI('ok'); }catch(e){ updateSyncUI('err'); }
   }
+}
+
+/* push a single changed med everywhere */
+async function commit(m){
+  persist(); renderManageList(); renderOverview();
+  if(cloud){
+    updateSyncUI('sync');
+    try{ await sbUpdate(stripForCloud(m)); updateSyncUI('ok'); }
+    catch(e){ updateSyncUI('err'); }
+  }
+}
+
+/* bought more — add to what's left and restart the clock from today */
+async function restock(id){
+  const m=meds.find(x=>x.id===id); if(!m) return;
+  const c=calc(m);
+  const left=round(c.remainingQty);
+  const ans=prompt('Restock "'+m.name+'"\n\nHow many '+m.unit+' did you just buy?\n(About '+left+' '+m.unit+' left now — the new amount is added on top.)','');
+  if(ans===null) return;
+  const added=parseFloat(ans);
+  if(!(added>0)){ alert('Enter a number greater than 0.'); return; }
+  m.qty=round(c.remainingQty+added);
+  m.start=todayISO();
+  if(editId===id) resetForm();
+  await commit(m);
+}
+
+/* counted the pack — set the real amount on hand as of today */
+async function setActual(id){
+  const m=meds.find(x=>x.id===id); if(!m) return;
+  const c=calc(m);
+  const est=round(c.remainingQty);
+  const ans=prompt('Set actual count for "'+m.name+'"\n\nHow many '+m.unit+' do you actually have right now?\n(Current estimate: '+est+' '+m.unit+'.)', est);
+  if(ans===null) return;
+  const actual=parseFloat(ans);
+  if(!(actual>=0)){ alert('Enter 0 or more.'); return; }
+  m.qty=round(actual);
+  m.start=todayISO();
+  if(editId===id) resetForm();
+  await commit(m);
 }
 
 function resetForm(){
